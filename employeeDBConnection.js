@@ -1,7 +1,19 @@
 const mysql = require("mysql");
 const inquirer = require("inquirer");
 const util = require('util');
+const cTable = require('console.table');
 
+
+const roles = [
+    "Sales Lead",
+    "Salesperson",
+    "Lead Engineer",
+    "Software Engineer",
+    "Account Manager",
+    "Accountant",
+    "Legal Team Lead",
+    "Lawyer"
+];
 let connection = mysql.createConnection({
     host: "localhost",
     port: 3306,
@@ -57,7 +69,10 @@ const removeEmployee = async () => {
 
 
 // Adding employee to database
-const addEmployee = () => {
+const addEmployee = async () => {
+    let employeeList = await getListOfEmployees();
+    employeeList.unshift("None");
+
     inquirer.prompt([{
         name: "first_name",
         type: "input",
@@ -70,23 +85,16 @@ const addEmployee = () => {
         name: "role",
         type: "list",
         message: "What is the employee's role?",
-        choices: [
-            "Sales Lead",
-            "Salesperson",
-            "Lead Engineer",
-            "Software Engineer",
-            "Account Manager",
-            "Accountant",
-            "Legal Team Lead",
-        ]
+        choices: roles
     }, {
         name: "manager",
-        type: "input",
+        type: "list",
+        choices: employeeList,
         message: "Who is the employee's manager?"
     }
     ]).then((answers) => {
         const role_id = getRoleId(answers.role);
-        const manager_id = getManagerId();
+        const manager_id = answers.manager.split(" ")[0];
         connection.query("INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?,?,?,?)", [answers.first_name, answers.last_name, role_id, manager_id], (err, result) => {
             console.log(result);
             selectAction();
@@ -120,17 +128,63 @@ const getRoleId = (role) => {
         case "Legal Team Lead":
             roleId = 7;
             break;
+        case "Lawyer":
+            roleId = 8;
+            break;
         default:
             roleId = 0;
     }
     return roleId;
 }
 
-
-const getManagerId = () => {
-    return 2;
+// View all employees
+const viewAllEmployees = async () => {
+    let rows = await query(`SELECT employee.id id, 
+    employee.first_name first_name, 
+    employee.last_name last_name, 
+    role.title title, 
+    department.name department, 
+    role.salary salary 
+    FROM employee 
+    INNER JOIN role 
+        ON (employee.role_id = role.id) 
+    INNER JOIN department 
+        ON (role.department_id = department.id);`);
+    console.table(rows);
+    selectAction();
 }
 
+// Prompt the department for viewing
+const selectDepartment = async () => {
+    inquirer.prompt([{
+        name: "department",
+        type: "list",
+        message: "Which department would you like to view?",
+        choices: ["Sales", "Engineering", "Finance", "Legal"]
+    }]).then((answers) => {
+        viewByDepartment(answers.department);
+    });
+}
+// Viewing employees of a given department
+const viewByDepartment = async (department) => {
+
+    let rows = await query(`SELECT employee.id id, 
+        employee.first_name first_name, 
+        employee.last_name last_name, 
+        role.title title, 
+        department.name department, 
+        role.salary salary 
+        FROM employee
+        INNER JOIN role 
+            ON (employee.role_id = role.id) 
+        INNER JOIN department 
+            ON (role.department_id = department.id)
+        WHERE department.name = '${department}';`);
+    console.table(rows);
+    selectAction();
+}
+
+// Main menu
 const selectAction = () => {
     inquirer.prompt([{
         name: "action",
@@ -149,10 +203,13 @@ const selectAction = () => {
     }]).then((answers) => {
         switch (answers.action) {
             case "View All Employees":
+                viewAllEmployees();
                 break;
             case "View All Employees By Department":
+                selectDepartment();
                 break;
             case "View All Employees By Manager":
+                selectManager();
                 break;
             case "Add Employee":
                 addEmployee();
@@ -161,6 +218,7 @@ const selectAction = () => {
                 removeEmployee();
                 break;
             case "Update Employee Role":
+
                 break;
             case "Update Employee Manager":
                 break;
