@@ -71,7 +71,7 @@ const removeEmployee = async () => {
 // Adding employee to database
 const addEmployee = async () => {
     let employeeList = await getListOfEmployees();
-    employeeList.unshift("None");
+    employeeList.unshift("0 None");
 
     inquirer.prompt([{
         name: "first_name",
@@ -121,7 +121,7 @@ const getRoleId = (role) => {
             break;
         case "Account Manager":
             roleId = 5;
-            break;;
+            break;
         case "Accountant":
             roleId = 6;
             break;
@@ -184,6 +184,34 @@ const viewByDepartment = async (department) => {
     selectAction();
 }
 
+// Update employee role
+
+const updateRole = async () => {
+    let employees = await getListOfEmployees();
+    let employeeId;
+    inquirer.prompt({
+        name: "employee",
+        type: "list",
+        message: "Which employee's role would you like to update?",
+        choices: employees
+    }).then((answers) => {
+        console.log(answers.employee);
+        employeeId = answers.employee.split(" ")[0];
+        inquirer.prompt({
+            name: "newRole",
+            type: "list",
+            message: "What is the employee's new role?",
+            choices: roles
+        }).then((answers) => {
+            console.log(getRoleId(answers.newRole));
+            console.log(employeeId);
+            connection.query("UPDATE employee SET role_id = ? WHERE id = ?;", [getRoleId(answers.newRole), employeeId], (err, result) => {
+                selectAction();
+            });
+        });
+
+    });
+}
 // Main menu
 const selectAction = () => {
     inquirer.prompt([{
@@ -209,7 +237,7 @@ const selectAction = () => {
                 selectDepartment();
                 break;
             case "View All Employees By Manager":
-                selectManager();
+                // selectManager();
                 break;
             case "Add Employee":
                 addEmployee();
@@ -218,7 +246,7 @@ const selectAction = () => {
                 removeEmployee();
                 break;
             case "Update Employee Role":
-
+                updateRole();
                 break;
             case "Update Employee Manager":
                 break;
