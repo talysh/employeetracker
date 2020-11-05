@@ -28,12 +28,12 @@ const query = util.promisify(connection.query).bind(connection);
 connection.connect(function (err) {
     if (err) throw err;
     console.log(`connected as id ${connection.threadId}`);
-    afterConnection();
+    selectAction();
 });
 
 // Getting list of employees and returning it as an array
 const getListOfEmployees = async () => {
-    var listOfEmployees = [];
+    let listOfEmployees = [];
     try {
         const result = await query("SELECT id, first_name, last_name FROM employee");
         result.forEach(object => {
@@ -139,15 +139,17 @@ const getRoleId = (role) => {
 
 // View all employees
 const viewAllEmployees = async () => {
-    let rows = await query(`SELECT employee.id id, 
-    employee.first_name first_name, 
-    employee.last_name last_name, 
+    let rows = await query(`SELECT e1.id id, 
+    e1.first_name first_name, 
+    e1.last_name last_name, 
     role.title title, 
     department.name department, 
-    role.salary salary 
-    FROM employee 
+    role.salary salary,
+    CONCAT(e2.first_name, ' ', e2.last_name) manager_name 
+    FROM employee AS e1 LEFT JOIN employee AS e2 
+        ON e1.manager_id = e2.id
     INNER JOIN role 
-        ON (employee.role_id = role.id) 
+        ON (e1.role_id = role.id) 
     INNER JOIN department 
         ON (role.department_id = department.id);`);
     console.table(rows);
@@ -168,17 +170,19 @@ const selectDepartment = async () => {
 // Viewing employees of a given department
 const viewByDepartment = async (department) => {
 
-    let rows = await query(`SELECT employee.id id, 
-        employee.first_name first_name, 
-        employee.last_name last_name, 
-        role.title title, 
-        department.name department, 
-        role.salary salary 
-        FROM employee
-        INNER JOIN role 
-            ON (employee.role_id = role.id) 
-        INNER JOIN department 
-            ON (role.department_id = department.id)
+    let rows = await query(`SELECT e1.id id, 
+    e1.first_name first_name, 
+    e1.last_name last_name, 
+    role.title title, 
+    department.name department, 
+    role.salary salary,
+    CONCAT(e2.first_name, ' ', e2.last_name) manager_name 
+    FROM employee AS e1 LEFT JOIN employee AS e2 
+        ON e1.manager_id = e2.id
+    INNER JOIN role 
+        ON (e1.role_id = role.id) 
+    INNER JOIN department 
+        ON (role.department_id = department.id)
         WHERE department.name = '${department}';`);
     console.table(rows);
     selectAction();
@@ -212,6 +216,80 @@ const updateRole = async () => {
 
     });
 }
+
+
+// Update employee manager
+const updateManager = async () => {
+    let employees = await getListOfEmployees();
+    let employeeId;
+    inquirer.prompt({
+        name: "employee",
+        type: "list",
+        message: "Which employee's manager would you like to update?",
+        choices: employees
+    }).then((answers) => {
+        employeeId = answers.employee.split(" ")[0];
+        employees.unshift("0 None");
+        inquirer.prompt({
+            name: "newManager",
+            type: "list",
+            message: "Who is the employee's new manager?",
+            choices: employees
+        }).then((answers) => {
+            const managerId = answers.newManager.split(" ")[0];
+            console.log(employeeId);
+            connection.query("UPDATE employee SET manager_id = ? WHERE id = ?;", [managerId, employeeId], (err, result) => {
+                selectAction();
+            });
+        });
+
+    });
+}
+
+// View employees by manager
+const viewByManager = async (department) => {
+    let managersArray = [];
+    let managers = await query(`SELECT DISTINCT e2.id,
+     e2.first_name, 
+     e2.last_name 
+     FROM employee AS e1 
+     INNER JOIN employee AS e2 
+        ON e2.id = e1.manager_id 
+    WHERE e2.manager_id IS NOT NULL;`);
+    managers.forEach(object => {
+        const manager = Object.values(object).join(" ");
+        managersArray.push(manager);
+    });
+
+    inquirer.prompt([{
+        name: "manager",
+        type: "list",
+        message: "Which manager's employees would you like to view?",
+        choices: managersArray
+    }]).then(async (answers) => {
+        const managerId = answers.manager.split(" ")[0];
+        console.log(managerId);
+
+        let rows = await query(`SELECT e1.id id, 
+        e1.first_name first_name, 
+        e1.last_name last_name, 
+        role.title title, 
+        department.name department, 
+        role.salary salary,
+        CONCAT(e2.first_name, ' ', e2.last_name) manager_name 
+        FROM employee AS e1 LEFT JOIN employee AS e2 
+            ON e1.manager_id = e2.id
+        INNER JOIN role 
+            ON (e1.role_id = role.id) 
+        INNER JOIN department 
+            ON (role.department_id = department.id)
+        WHERE e1.manager_id = ${managerId};`);
+        console.table(rows);
+        selectAction();
+    });
+
+}
+
 // Main menu
 const selectAction = () => {
     inquirer.prompt([{
@@ -237,7 +315,7 @@ const selectAction = () => {
                 selectDepartment();
                 break;
             case "View All Employees By Manager":
-                // selectManager();
+                viewByManager();
                 break;
             case "Add Employee":
                 addEmployee();
@@ -249,20 +327,11 @@ const selectAction = () => {
                 updateRole();
                 break;
             case "Update Employee Manager":
+                updateManager();
                 break;
             case "Exit":
                 connection.end();
                 break;
         }
     });
-}
-
-const afterConnection = () => {
-    selectAction();
-
-    // connection.query("SELECT * FROM employee", (err, res) => {
-    //     if (err) throw err;
-    //     console.log(res);
-    //     connection.end();
-    // });
 }
