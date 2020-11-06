@@ -31,15 +31,50 @@ connection.connect(function (err) {
     selectAction();
 });
 
+// Helper Functions
+//-----------------
+// Return Id of the individual
+const returnId = (person) => {
+    return person.split(" ")[0];
+}
+
+//Inquirer input question
+const inputQuestion = (inputMessage, inputName) => {
+    return {
+        name: inputName,
+        type: "input",
+        message: inputMessage
+    }
+}
+
+// Inquirer list question
+const listQuestion = (inputMessage, inputChoices, inputName) => {
+    return {
+        name: inputName,
+        type: "list",
+        choices: inputChoices,
+        message: inputMessage
+    }
+
+}
+
+
+// Turn array of objects, into array of strings
+const returnArrayOfStrings = (result) => {
+    const list = []
+    result.forEach(object => {
+        const element = Object.values(object).join(" ");
+        list.push(element);
+    });
+    return list;
+}
+
 // Getting list of employees and returning it as an array
 const getListOfEmployees = async () => {
     let listOfEmployees = [];
     try {
         const result = await query("SELECT id, first_name, last_name FROM employee");
-        result.forEach(object => {
-            let employee = Object.values(object).join(" ");
-            listOfEmployees.push(employee);
-        });
+        listOfEmployees = returnArrayOfStrings(result);
     } catch (error) {
         throw error;
     }
@@ -51,15 +86,8 @@ const getListOfEmployees = async () => {
 
 const removeEmployee = async () => {
     const employeeList = await getListOfEmployees();
-    inquirer.prompt([{
-        name: "employee",
-        type: "list",
-        choices: employeeList,
-        message: "Which employee would you like to remove?"
-
-    }]).then((answers) => {
-        const removeId = answers.employee.split(" ")[0];
-        console.log(removeId);
+    inquirer.prompt(listQuestion("employee", employeeList, "Which employee would you like to remove?")).then((answers) => {
+        const removeId = returnId(answers.employee);
         connection.query("DELETE FROM employee WHERE id = ?", removeId, (err, result) => {
             if (err) throw err;
         });
@@ -73,30 +101,15 @@ const addEmployee = async () => {
     let employeeList = await getListOfEmployees();
     employeeList.unshift("0 None");
 
-    inquirer.prompt([{
-        name: "first_name",
-        type: "input",
-        message: "What is the employee's first name?"
-    }, {
-        name: "last_name",
-        type: "input",
-        message: "What is the employee's last name?"
-    }, {
-        name: "role",
-        type: "list",
-        message: "What is the employee's role?",
-        choices: roles
-    }, {
-        name: "manager",
-        type: "list",
-        choices: employeeList,
-        message: "Who is the employee's manager?"
-    }
+    inquirer.prompt([
+        inputQuestion("What is the employee's first name?", "first_name"),
+        inputQuestion("What is the employee's last name?", "last_name"),
+        listQuestion("What is the employee's role", roles, "role"),
+        listQuestion("Who is the employee's manager?", employeeList, "manager"),
     ]).then((answers) => {
         const role_id = getRoleId(answers.role);
-        const manager_id = answers.manager.split(" ")[0];
+        const manager_id = returnId(answers.manager);
         connection.query("INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?,?,?,?)", [answers.first_name, answers.last_name, role_id, manager_id], (err, result) => {
-            console.log(result);
             selectAction();
         });
     });
@@ -139,7 +152,7 @@ const getRoleId = (role) => {
 
 // View all employees
 const viewAllEmployees = async () => {
-    let rows = await query(`SELECT e1.id id, 
+    const rows = await query(`SELECT e1.id id, 
     e1.first_name first_name, 
     e1.last_name last_name, 
     role.title title, 
@@ -170,7 +183,7 @@ const selectDepartment = async () => {
 // Viewing employees of a given department
 const viewByDepartment = async (department) => {
 
-    let rows = await query(`SELECT e1.id id, 
+    const rows = await query(`SELECT e1.id id, 
     e1.first_name first_name, 
     e1.last_name last_name, 
     role.title title, 
@@ -193,22 +206,10 @@ const viewByDepartment = async (department) => {
 const updateRole = async () => {
     let employees = await getListOfEmployees();
     let employeeId;
-    inquirer.prompt({
-        name: "employee",
-        type: "list",
-        message: "Which employee's role would you like to update?",
-        choices: employees
-    }).then((answers) => {
-        console.log(answers.employee);
-        employeeId = answers.employee.split(" ")[0];
-        inquirer.prompt({
-            name: "newRole",
-            type: "list",
-            message: "What is the employee's new role?",
-            choices: roles
-        }).then((answers) => {
-            console.log(getRoleId(answers.newRole));
-            console.log(employeeId);
+    inquirer.prompt(listQuestion("Which employee's role would you like to update?", employees, "employee")).then((answers) => {
+        employeeId = returnId(answers.employee);
+        inquirer.prompt(listQuestion("What is the employee's new role?", roles, "newRole")
+        ).then((answers) => {
             connection.query("UPDATE employee SET role_id = ? WHERE id = ?;", [getRoleId(answers.newRole), employeeId], (err, result) => {
                 selectAction();
             });
@@ -218,26 +219,16 @@ const updateRole = async () => {
 }
 
 
+
 // Update employee manager
 const updateManager = async () => {
     let employees = await getListOfEmployees();
     let employeeId;
-    inquirer.prompt({
-        name: "employee",
-        type: "list",
-        message: "Which employee's manager would you like to update?",
-        choices: employees
-    }).then((answers) => {
-        employeeId = answers.employee.split(" ")[0];
+    inquirer.prompt(listQuestion("Which employee's manager would you like to update?", employees, "employee")).then((answers) => {
+        employeeId = returnId(answers.employee);
         employees.unshift("0 None");
-        inquirer.prompt({
-            name: "newManager",
-            type: "list",
-            message: "Who is the employee's new manager?",
-            choices: employees
-        }).then((answers) => {
-            const managerId = answers.newManager.split(" ")[0];
-            console.log(employeeId);
+        inquirer.prompt(listQuestion("Who is the employee's new manager?", employees, "newManager")).then((answers) => {
+            const managerId = returnId(answers.newManager);
             connection.query("UPDATE employee SET manager_id = ? WHERE id = ?;", [managerId, employeeId], (err, result) => {
                 selectAction();
             });
@@ -247,30 +238,20 @@ const updateManager = async () => {
 }
 
 // View employees by manager
-const viewByManager = async (department) => {
+const viewByManager = async () => {
     let managersArray = [];
-    let managers = await query(`SELECT DISTINCT e2.id,
+    const managers = await query(`SELECT DISTINCT e2.id,
      e2.first_name, 
      e2.last_name 
      FROM employee AS e1 
      INNER JOIN employee AS e2 
         ON e2.id = e1.manager_id 
     WHERE e2.manager_id IS NOT NULL;`);
-    managers.forEach(object => {
-        const manager = Object.values(object).join(" ");
-        managersArray.push(manager);
-    });
+    managersArray = returnArrayOfStrings(managers);
+    inquirer.prompt(listQuestion("Which manager's employees would you like to view?", managersArray, "manager")).then(async (answers) => {
+        const managerId = returnId(answers.manager);;
 
-    inquirer.prompt([{
-        name: "manager",
-        type: "list",
-        message: "Which manager's employees would you like to view?",
-        choices: managersArray
-    }]).then(async (answers) => {
-        const managerId = answers.manager.split(" ")[0];
-        console.log(managerId);
-
-        let rows = await query(`SELECT e1.id id, 
+        const rows = await query(`SELECT e1.id id, 
         e1.first_name first_name, 
         e1.last_name last_name, 
         role.title title, 
@@ -290,6 +271,15 @@ const viewByManager = async (department) => {
 
 }
 
+// Add a new department
+const addDepartment = () => {
+    inquirer.prompt(inputQuestion("Please, enter department name: ", "departmentName")).then((answers) => {
+        connection.query("INSERT INTO department (name) VALUES (?)", answers.departmentName, (err, result) => {
+            connection.end();
+        });
+    });
+}
+
 // Main menu
 const selectAction = () => {
     inquirer.prompt([{
@@ -304,6 +294,7 @@ const selectAction = () => {
             "Remove Employee",
             "Update Employee Role",
             "Update Employee Manager",
+            "Add Department",
             "Exit"
         ]
     }]).then((answers) => {
@@ -328,6 +319,9 @@ const selectAction = () => {
                 break;
             case "Update Employee Manager":
                 updateManager();
+                break;
+            case "Add Department":
+                addDepartment();
                 break;
             case "Exit":
                 connection.end();
