@@ -1,6 +1,5 @@
 USE employee_db;
 
-
 INSERT INTO `employee_db`.`role` (`id`, `title`, `salary`, `department_id`) VALUES ('1', 'Sales Lead', '100000', '1');
 INSERT INTO `employee_db`.`role` (`id`, `title`, `salary`, `department_id`) VALUES ('2', 'Salesperson', '80000', '1');
 INSERT INTO `employee_db`.`role` (`id`, `title`, `salary`, `department_id`) VALUES ('3', 'Lead Engineer', '150000', '2');
